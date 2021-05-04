@@ -1,3 +1,9 @@
+Flickr8k_Dataset
+Flickr8k_text
+Images
+captions.txt
+*.pkl
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
