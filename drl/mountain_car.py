@@ -29,31 +29,31 @@ def get_results_file_name(experiment):
 
 
 def plot_results(experiments, prefix):
+    plt.figure()
+    plt.title('Mean reward per episode')
+    plt.xlabel('Episodes')
+    plt.ylabel('Reward')
     for experiment in experiments:
-        results_file_name = get_results_file_name(experiment)
-        
+        results_file_name = get_results_file_name(experiment)     
         with open(results_file_name, 'r') as f:
             results = json.load(f)
-            
-        episodes = results['episode']
-        rewards = results['episode_reward']
-        mean_q = results['mean_q']
+        plt.plot(results['episode'], results['episode_reward'], label=experiment)
+    plt.legend()
+    plt.show()
+    plt.savefig(prefix + '_rewards.jpg')
     
-        plt.figure()
-        plt.plot(episodes, rewards)
-        plt.title('Mean reward per episode')
-        plt.xlabel('Episodes')
-        plt.ylabel('Reward')
-        plt.show()
-        plt.savefig(prefix + '_rewards.jpg')
-        
-        plt.figure()
-        plt.plot(episodes, mean_q)
-        plt.title('Mean Q per episode')
-        plt.xlabel('Episodes')
-        plt.ylabel('Q')
-        plt.show()
-        plt.savefig(prefix + '_q.jpg')
+    plt.figure()
+    plt.title('Mean Q per episode')
+    plt.xlabel('Episodes')
+    plt.ylabel('Q')
+    for experiment in experiments:
+        results_file_name = get_results_file_name(experiment)     
+        with open(results_file_name, 'r') as f:
+            results = json.load(f)
+        plt.plot(results['episode'], results['mean_q'], label=experiment)
+    plt.legend()
+    plt.show()
+    plt.savefig(prefix + '_q.jpg')
 
 
 def run_experiment(experiment, policy):
@@ -96,12 +96,10 @@ def main():
         ("Boltzmann", BoltzmannQPolicy()),
         ("MaxBoltzmann", MaxBoltzmannQPolicy()),
         ]
-    
-    experiments = [x[0] for x in all_params]
-    
     for params in all_params:
         run_experiment(*params)
     
+    experiments = [x[0] for x in all_params]
     plot_results(experiments, 'all_policies_without_noise')
 
 
