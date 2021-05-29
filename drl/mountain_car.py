@@ -11,6 +11,23 @@ from rl.policy import MaxBoltzmannQPolicy
 from rl.callbacks import FileLogger
 import json
 import matplotlib.pyplot as plt
+from gym.envs.classic_control.mountain_car import MountainCarEnv
+from time import time
+
+
+class MountainCarWithNoiseEnv(MountainCarEnv):
+    def __init__(self, goal_velocity=0, noise_std=0):
+        super().__init__(goal_velocity)
+        self.noise_std = noise_std
+
+    def step(self, action):
+        state, reward, done, info = super().step(action)
+        
+        if self.noise_std > 0:
+            state[0] += np.random.normal(0, self.noise_std)
+            state[1] += np.random.normal(0, self.noise_std)
+        
+        return state, reward, done, info
 
 
 def get_model(env):
@@ -28,6 +45,17 @@ def get_results_file_name(experiment):
     return experiment + '.json'
 
 
+def exponential_smoothing(x, alpha):
+    y = np.zeros_like(x)
+    
+    y[0] = x[0]
+    
+    for i in range(1, len(x)):
+        y[i] = alpha*x[i] + (1-alpha)*y[i-1]
+    
+    return y
+
+
 def plot_results(experiments, prefix):
     plt.figure()
     plt.title('Mean reward per episode')
@@ -37,7 +65,10 @@ def plot_results(experiments, prefix):
         results_file_name = get_results_file_name(experiment)     
         with open(results_file_name, 'r') as f:
             results = json.load(f)
-        plt.plot(results['episode'], results['episode_reward'], label=experiment)
+        episodes = results['episode']
+        rewards = results['episode_reward']
+        # rewards = exponential_smoothing(rewards, 0.01) # FIXME
+        plt.plot(episodes, rewards, label=experiment)
     plt.legend()
     plt.show()
     plt.savefig(prefix + '_rewards.jpg')
@@ -50,17 +81,21 @@ def plot_results(experiments, prefix):
         results_file_name = get_results_file_name(experiment)     
         with open(results_file_name, 'r') as f:
             results = json.load(f)
-        plt.plot(results['episode'], results['mean_q'], label=experiment)
+        episodes = results['episode']
+        q = results['mean_q']
+        plt.plot(episodes, q, label=experiment)
     plt.legend()
     plt.show()
     plt.savefig(prefix + '_q.jpg')
 
 
-def run_experiment(experiment, policy):
+def run_experiment(experiment, policy, noise_std):
+    print(f'\n\n------ Running experiment: {experiment} ------\n')
+    
     results_file_name = get_results_file_name(experiment)
     
     try:
-        env = gym.make('MountainCar-v0')
+        env = MountainCarWithNoiseEnv(noise_std=noise_std)
         
         env.seed(0)
         np.random.seed(0)
@@ -77,7 +112,8 @@ def run_experiment(experiment, policy):
         callbacks=[FileLogger(results_file_name)]
         
         agent.compile(keras.optimizers.Adam(lr=1e-3), metrics=['mae'])
-        agent.fit(env, nb_steps=1500, callbacks=callbacks, visualize=True, verbose=0) # FIXME
+        agent.fit(env, nb_steps=150000, nb_max_episode_steps=200, callbacks=callbacks,
+                  visualize=True, verbose=1) # FIXME
         
         # input("Press enter to start to testing...")
         # agent.test(env, nb_episodes=5, visualize=True)
@@ -86,21 +122,28 @@ def run_experiment(experiment, policy):
 
 
 def main():
+    t0 = time()
+    
     print(f'tensorflow version = {tf.__version__}')
     print(tf.config.list_physical_devices('GPU'))
     print()
     
     all_params = [
-        ("EpsGreedy", EpsGreedyQPolicy()),
-        ("Greedy", GreedyQPolicy()),
-        ("Boltzmann", BoltzmannQPolicy()),
-        ("MaxBoltzmann", MaxBoltzmannQPolicy()),
+        ('Greedy', GreedyQPolicy(), 0),
+        ('EpsGreedy eps=0.05', EpsGreedyQPolicy(eps=0.05), 0),
+        ('EpsGreedy eps=0.1', EpsGreedyQPolicy(eps=0.1), 0),
+        ('EpsGreedy eps=0.2', EpsGreedyQPolicy(eps=0.2), 0),
+        ('MaxBoltzmann eps=0.05', MaxBoltzmannQPolicy(eps=0.05), 0),
+        ('MaxBoltzmann eps=0.1', MaxBoltzmannQPolicy(eps=0.1), 0),
+        ('MaxBoltzmann eps=0.2', MaxBoltzmannQPolicy(eps=0.2), 0),
         ]
     for params in all_params:
         run_experiment(*params)
     
     experiments = [x[0] for x in all_params]
     plot_results(experiments, 'all_policies_without_noise')
+    
+    print(f'Total time: {(time() - t0)/60:.1f} min')
 
 
 if __name__ == '__main__':
