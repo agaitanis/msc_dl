@@ -1,2 +1,2 @@
 # msc_dl
- Deep Learning
+ Projects for Deep Learning - MSc in AI
